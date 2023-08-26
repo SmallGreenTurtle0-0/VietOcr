@@ -1,3 +1,11 @@
+# data
+train_data_team/
+valid_data_team/
+weight/
+
+# run log
+run/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

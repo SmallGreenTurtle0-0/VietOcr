@@ -26,10 +26,14 @@ import matplotlib.pyplot as plt
 import time
 
 class Trainer():
-    def __init__(self, config, pretrained=True, augmentor=ImgAugTransform()):
+    def __init__(self, config, pretrained=True, augmentor=ImgAugTransform(), 
+                 experiment='exp', save_period=100, use_checkpoint=False):
 
         self.config = config
         self.model, self.vocab = build_model(config)
+        
+        self.experiment = experiment
+        self.save_period = save_period
         
         self.device = config['device']
         self.num_iters = config['trainer']['iters']
@@ -51,14 +55,21 @@ class Trainer():
         self.export_weights = config['trainer']['export']
         self.metrics = config['trainer']['metrics']
         logger = config['trainer']['log']
-    
-        if logger:
-            self.logger = Logger(logger) 
 
+        if logger:
+            self.logger = Logger(f'./run/{self.experiment}/{logger}') 
+
+        print('CHECK pretrained: ', pretrained)
+        print('CHECK use_checkpoint: ', use_checkpoint)
+        
         if pretrained:
             weight_file = download_weights(config['pretrain'], quiet=config['quiet'])
             self.load_weights(weight_file)
 
+        if use_checkpoint:
+            self.load_checkpoint(config['trainer']['checkpoint'])
+        
+        
         self.iter = 0
         
         self.optimizer = AdamW(self.model.parameters(), betas=(0.9, 0.98), eps=1e-09)
@@ -130,10 +141,16 @@ class Trainer():
                 print(info)
                 self.logger.log(info)
 
-                if acc_full_seq > best_acc:
+                if acc_per_char > best_acc:
+                    mess = 'Save best checkpoint at iter: {}, with best acc per char: {}'.format(self.iter, acc_per_char)
+                    self.logger.log(mess)
+                    print(mess)
                     self.save_weights(self.export_weights)
-                    best_acc = acc_full_seq
-
+                    best_acc = acc_per_char
+            if self.iter % self.save_period == 0:
+                mess = 'Save latest checkpoint at iter: {}'.format(self.iter)
+                self.logger.log(mess)
+                self.save_checkpoint(f'./run/{self.experiment}/last_checkpoint.pth')
             
     def validate(self):
         self.model.eval()
@@ -255,10 +272,10 @@ class Trainer():
     def load_checkpoint(self, filename):
         checkpoint = torch.load(filename)
         
-        optim = ScheduledOptim(
-	       Adam(self.model.parameters(), betas=(0.9, 0.98), eps=1e-09),
-            	self.config['transformer']['d_model'], **self.config['optimizer'])
-
+        # optim = ScheduledOptim(
+	    #    Adam(self.model.parameters(), betas=(0.9, 0.98), eps=1e-09),
+        #     	self.config['transformer']['d_model'], **self.config['optimizer'])
+        self.scheduler.load_state_dict(checkpoint['scheduler'])
         self.optimizer.load_state_dict(checkpoint['optimizer'])
         self.model.load_state_dict(checkpoint['state_dict'])
         self.iter = checkpoint['iter']
@@ -267,6 +284,7 @@ class Trainer():
 
     def save_checkpoint(self, filename):
         state = {'iter':self.iter, 'state_dict': self.model.state_dict(),
+                'scheduler': self.scheduler.state_dict(),
                 'optimizer': self.optimizer.state_dict(), 'train_losses': self.train_losses}
         
         path, _ = os.path.split(filename)
