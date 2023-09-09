@@ -15,7 +15,7 @@ def main():
     parser.add_argument('--save_period', required=False, default=100, help='save model every x iteration')
     args = parser.parse_args()
     config = Cfg.load_config_from_file(args.config)
-
+    print('PRETRAIN', args.pretrained)
     trainer = Trainer(config, pretrained=args.pretrained, experiment=args.experiment,
                       use_checkpoint=args.use_checkpoint, save_period=int(args.save_period))
 

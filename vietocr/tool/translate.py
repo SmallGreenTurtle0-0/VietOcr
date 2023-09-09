@@ -8,7 +8,7 @@ from vietocr.model.transformerocr import VietOCR
 from vietocr.model.vocab import Vocab
 from vietocr.model.beam import Beam
 
-def batch_translate_beam_search(img, model, beam_size=4, candidates=1, max_seq_length=128, sos_token=1, eos_token=2):
+def batch_translate_beam_search(img, model, beam_size=4, candidates=1, max_seq_length=22, sos_token=1, eos_token=2):
     # img: NxCxHxW
     model.eval()
     device = img.device
@@ -16,7 +16,7 @@ def batch_translate_beam_search(img, model, beam_size=4, candidates=1, max_seq_l
 
     with torch.no_grad():
         src = model.cnn(img)
-        print(src.shap)
+        
         memories = model.transformer.forward_encoder(src)
         for i in range(src.size(0)):
 #            memory = memories[:,i,:].repeat(1, beam_size, 1) # TxNxE
@@ -28,7 +28,7 @@ def batch_translate_beam_search(img, model, beam_size=4, candidates=1, max_seq_l
 
     return sents
    
-def translate_beam_search(img, model, beam_size=4, candidates=1, max_seq_length=128, sos_token=1, eos_token=2):
+def translate_beam_search(img, model, beam_size=4, candidates=1, max_seq_length=22, sos_token=1, eos_token=2):
     # img: 1xCxHxW
     model.eval()
     device = img.device
@@ -40,7 +40,7 @@ def translate_beam_search(img, model, beam_size=4, candidates=1, max_seq_length=
 
     return sent
         
-def beamsearch(memory, model, device, beam_size=4, candidates=1, max_seq_length=128, sos_token=1, eos_token=2):    
+def beamsearch(memory, model, device, beam_size=4, candidates=1, max_seq_length=22, sos_token=1, eos_token=2):    
     # memory: Tx1xE
     model.eval()
 
@@ -70,7 +70,100 @@ def beamsearch(memory, model, device, beam_size=4, candidates=1, max_seq_length=
     
     return [1] + [int(i) for i in hypothesises[0][:-1]]
 
-def translate(img, model, max_seq_length=128, sos_token=1, eos_token=2):
+def prob_full_seq(img, model, max_seq_length=22, 
+                  sos_token=1, eos_token=2):
+    "data: BxCXHxW"
+    model.eval()
+    device = img.device
+
+    with torch.no_grad():
+        src = model.cnn(img)
+        memory = model.transformer.forward_encoder(src)
+
+        translated_sentence = [[sos_token]*len(img)]
+        char_probs = [[1]*len(img)]
+
+        max_length = 0
+
+        while max_length < max_seq_length :
+
+            tgt_inp = torch.LongTensor(translated_sentence).to(device)
+            
+#            output = model(img, tgt_inp, tgt_key_padding_mask=None)
+#            output = model.transformer(src, tgt_inp, tgt_key_padding_mask=None)
+            output, memory = model.transformer.forward_decoder(tgt_inp, memory)
+            output = softmax(output, dim=-1)
+            output = output.to('cpu')
+    
+    return output
+
+def translate_full_prob(output):
+    values, indices  = torch.max(output, dim=-1)
+    
+    indices = indices[0]
+    indices = indices.tolist()
+    
+    values = values[0]
+    values = values.tolist()
+    
+    translated_sentence = indices  
+    translated_sentence = np.asarray(translated_sentence).T
+    
+    char_probs = values
+    char_probs = np.asarray(char_probs).T
+    char_probs = np.multiply(char_probs, translated_sentence>3)
+    char_probs = np.sum(char_probs, axis=-1)/(char_probs>0).sum(-1)
+    
+    return translated_sentence, char_probs
+
+def translate_full_seq(img, model, max_seq_length=22, 
+                       sos_token=1, eos_token=2,
+                       full_prob=False):
+    "data: BxCXHxW"
+    model.eval()
+    device = img.device
+
+    with torch.no_grad():
+        src = model.cnn(img)
+        memory = model.transformer.forward_encoder(src)
+
+        translated_sentence = [[sos_token]*len(img)]
+        char_probs = [[1]*len(img)]
+
+        max_length = 0
+
+        while max_length < max_seq_length :
+
+            tgt_inp = torch.LongTensor(translated_sentence).to(device)
+            
+#            output = model(img, tgt_inp, tgt_key_padding_mask=None)
+#            output = model.transformer(src, tgt_inp, tgt_key_padding_mask=None)
+            output, memory = model.transformer.forward_decoder(tgt_inp, memory)
+            output = softmax(output, dim=-1)
+            output = output.to('cpu')
+            values, indices  = torch.topk(output, 5)
+            
+            indices = indices[:, -1, 0]
+            indices = indices.tolist()
+            
+            values = values[:, -1, 0]
+            values = values.tolist()
+            char_probs.append(values)
+
+            translated_sentence.append(indices)   
+            max_length += 1
+
+        translated_sentence = np.asarray(translated_sentence).T
+
+        char_probs = np.asarray(char_probs).T
+        char_probs = np.multiply(char_probs, translated_sentence>3)
+        char_probs = np.sum(char_probs, axis=-1)/(char_probs>0).sum(-1)
+    if full_prob:
+        return translated_sentence, char_probs, output
+    else:
+        return translated_sentence, char_probs
+
+def translate(img, model, max_seq_length=22, sos_token=1, eos_token=2):
     "data: BxCXHxW"
     model.eval()
     device = img.device
@@ -93,7 +186,7 @@ def translate(img, model, max_seq_length=128, sos_token=1, eos_token=2):
             output, memory = model.transformer.forward_decoder(tgt_inp, memory)
             output = softmax(output, dim=-1)
             output = output.to('cpu')
-
+            
             values, indices  = torch.topk(output, 5)
             
             indices = indices[:, -1, 0]
@@ -107,7 +200,7 @@ def translate(img, model, max_seq_length=128, sos_token=1, eos_token=2):
             max_length += 1
 
             del output
-
+            
         translated_sentence = np.asarray(translated_sentence).T
         
         char_probs = np.asarray(char_probs).T

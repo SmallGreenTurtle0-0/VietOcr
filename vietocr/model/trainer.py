@@ -26,7 +26,7 @@ import matplotlib.pyplot as plt
 import time
 
 class Trainer():
-    def __init__(self, config, pretrained=True, augmentor=ImgAugTransform(), 
+    def __init__(self, config, pretrained=False, augmentor=ImgAugTransform(), 
                  experiment='exp', save_period=100, use_checkpoint=False):
 
         self.config = config

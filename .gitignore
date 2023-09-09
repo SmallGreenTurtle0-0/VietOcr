@@ -1,7 +1,8 @@
 # data
-train_data_team/
-valid_data_team/
+train_data_team*/
+valid_data_team*/
 weight/
+puplictest_infer/
 
 # run log
 run/

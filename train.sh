@@ -1,8 +1,7 @@
-CONFIG='/mnt/disk1/mbbank/OCR/CODE/VietOcr/config/config_V2.yml'
-EXPERIMENT='V2'
+CONFIG='/mnt/disk1/mbbank/OCR/CODE/VietOcr/config/config_V5.yml'
+EXPERIMENT='V5'
 SAVE_PERIOD=10000
-CUDA_VISIBLE_DEVICES=0,1,2,3 python3 train.py \
+CUDA_VISIBLE_DEVICES=2 python train.py \
 --config $CONFIG \
 --experiment $EXPERIMENT \
---pretrain \
 --save_period $SAVE_PERIOD 

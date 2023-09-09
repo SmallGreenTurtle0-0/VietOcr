@@ -1,4 +1,4 @@
-from vietocr.tool.translate import build_model, translate, translate_beam_search, process_input, predict
+from vietocr.tool.translate import build_model, translate, translate_beam_search, translate_full_seq, process_input, predict
 from vietocr.tool.utils import download_weights
 
 import torch
@@ -24,7 +24,7 @@ class Predictor():
         self.vocab = vocab
         self.device = device
 
-    def predict(self, img, return_prob=False):
+    def predict(self, img, return_prob=False, full_seq=False):
         img = process_input(img, self.config['dataset']['image_height'], 
                 self.config['dataset']['image_min_width'], self.config['dataset']['image_max_width'])        
         img = img.to(self.config['device'])
@@ -33,15 +33,21 @@ class Predictor():
             sent = translate_beam_search(img, self.model)
             s = sent
             prob = None
+        elif full_seq:
+            s, prob, full_prob = translate_full_seq(img, self.model, full_prob=True)
+            s = s[0].tolist()
+            prob = prob[0]
         else:
             s, prob = translate(img, self.model)
             s = s[0].tolist()
             prob = prob[0]
-
+        
         s = self.vocab.decode(s)
         
         if return_prob:
             return s, prob
+        elif full_seq:
+            return s, full_prob
         else:
             return s
 
